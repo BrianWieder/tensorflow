@@ -4,6 +4,7 @@
 
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "bool_setting")
+load("@bazel_skylib//lib:new_sets.bzl", "sets")
 load(
     "//tensorflow:tensorflow.bzl",
     "VERSION",
@@ -46,6 +47,7 @@ load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 # copybara:uncomment_end
 
 # copybara:comment_begin(oss-only)
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load(
     "//tensorflow/python/tools/api/generator:api_gen.bzl",
     "gen_api_init_files",
@@ -60,6 +62,7 @@ load(
     "//tensorflow/python/tools/api/generator:api_init_files_v1.bzl",
     "TENSORFLOW_API_INIT_FILES_V1",
 )
+load("//tensorflow/python/tools/api/generator2:generate_api.bzl", "generate_apis")
 # copybara:comment_end
 
 PACKAGE_STATIC_DEPS = [
@@ -1622,17 +1625,13 @@ genrule(
 )
 
 # copybara:comment_begin(oss-only)
-genrule(
+copy_file(
     name = "root_init_gen",
-    srcs = select({
-        "api_version_2": [":tf_python_api_gen_v2"],
-        "//conditions:default": [":tf_python_api_gen_v1"],
+    src = select({
+      "api_version_2": "_api/v2/v2.py",
+      "//conditions:default": "_api/v1/v1.py",
     }),
-    outs = ["__init__.py"],
-    cmd = select({
-        "api_version_2": "cp $(@D)/_api/v2/v2.py $(OUTS) && sed -i'.original' 's:from . import:from ._api.v2 import:g' $(OUTS)",
-        "//conditions:default": "cp $(@D)/_api/v1/v1.py $(OUTS) && sed -i'.original' 's:from . import:from ._api.v1 import:g' $(OUTS)",
-    }),
+    out = "__init__.py",
 )
 
 genrule(
@@ -1645,13 +1644,8 @@ genrule(
     cmd = "cp $(SRCS) $(OUTS)",
 )
 
-gen_api_init_files(
+generate_apis(
     name = "tf_python_api_gen_v1",
-    srcs = [
-        "api_template_v1.__init__.py",
-        "compat_template.__init__.py",
-        "compat_template_v1.__init__.py",
-    ],
     api_version = 1,
     compat_api_versions = [
         1,
@@ -1664,18 +1658,14 @@ gen_api_init_files(
     output_dir = "_api/v1/",
     output_files = TENSORFLOW_API_INIT_FILES_V1,
     output_package = "tensorflow._api.v1",
+    packages_to_ignore = ["tensorflow.python.framework.test_ops"],
     root_file_name = "v1.py",
-    root_init_template = "$(location api_template_v1.__init__.py)",
+    root_init_template = "api_template_v1.__init__.py",
 )
 
-gen_api_init_files(
+generate_apis(
     name = "tf_python_api_gen_v2",
-    srcs = [
-        "api_template.__init__.py",
-        "compat_template.__init__.py",
-        "compat_template_v1.__init__.py",
-    ],
-    api_packages_file_name = "api_packages.txt",
+    # api_packages_file_name = "api_packages.txt",
     api_version = 2,
     compat_api_versions = [
         1,
@@ -1688,8 +1678,9 @@ gen_api_init_files(
     output_dir = "_api/v2/",
     output_files = TENSORFLOW_API_INIT_FILES_V2,
     output_package = "tensorflow._api.v2",
+    packages_to_ignore = ["tensorflow.python.framework.test_ops"],
     root_file_name = "v2.py",
-    root_init_template = "$(location api_template.__init__.py)",
+    root_init_template = "api_template.__init__.py",
     visibility = ["//visibility:public"],
 )
 
@@ -1697,12 +1688,7 @@ py_library(
     name = "tensorflow_py",
     srcs_version = "PY3",
     visibility = ["//visibility:public"],
-    deps = select(
-        {
-            "api_version_2": [],
-            "//conditions:default": [],
-        },
-    ) + [
+    deps = [
         ":tensorflow_py_no_contrib",
         "//tensorflow/lite/python:analyzer",
         "//tensorflow/lite/python:lite",

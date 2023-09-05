@@ -263,7 +263,7 @@ generate_api = rule(
 
 def generate_apis(
         name,
-        apis = [],
+        apis = ["tensorflow"],
         deps = [
             "//tensorflow/python:no_contrib",
             "//tensorflow/python:modules_with_exports",
@@ -319,6 +319,12 @@ def generate_apis(
     if proxy_module_root != None:
         # Avoid conflicts between the __init__.py file of TensorFlow and proxy module.
         output_files = [f for f in output_files if f != "__init__.py"]
+
+    if root_file_name != None:
+        output_files = [root_file_name if f == '__init__.py' else f for f in output_files]
+
+    if root_file_name != None:
+        output_files = [f if f != "__init__.py" else root_file_name for f in output_files]
 
     all_output_files = [paths.join(output_dir, f) for f in output_files]
 
